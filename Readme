@@ -1,4 +1,589 @@
+Week-2
+1.	a) Create and attach an EBS volume to an EC2 instance, and 
+b)	scale the instance by increasing CPU and RAM by changing the instance type.
+2.Attach and permanently mount an EBS volume to a Linux EC2 instance to ensure data persistence across reboots.
+3. Create a snapshot of the attached EBS volume and use it to create and attach a new volume to an EC2 instance in another AWS region.
+________________________________________
+1.	a) Create and attach an EBS volume to an EC2 instance, and 
+b)	scale the instance by increasing CPU and RAM by changing the instance type.
+
+a)	Creating  and attaching  an EBS volume to an EC2 instance
+Step 1: Create a New EBS Volume
+Open the EC2 Dashboard.
+From the left-hand menu, select Volumes under Elastic Block Store (EBS).
+Click Create Volume.
+Choose:
+Volume type (gp3/gp2)
+Size of the volume
+Availability Zone (must be the same as the EC2 instance)
+Click Create Volume.
+________________________________________
+Step 2: Attach the EBS Volume to the Existing EC2 Instance
+In the Volumes section, select the newly created volume.
+Click Actions → Attach Volume.
+Select the target EC2 instance from the list.
+Specify the device name (example: /dev/xvdf).
+Click Attach.
+________________________________________
+Step 3: Verify the Volume on the EC2 Instance
+Connect to the EC2 instance using SSH.
+Check the attached disks:
+lsblk
+Identify the new volume (e.g., /dev/xvdf).
+
+Note: Ensure that the EBS volume and the EC2 instance belong to the same Availability Zone, as cross-AZ attachment is not supported.
+________________________________________
+
+b)Procedure: increasing/decreasing  of CPU and RAM
+   Step 1.  - Navigate to the EC2 dashboard.
+   Step 2. - Stop the EC2 instance associated with the EBS volume.
+ 	Step 3.  - Click "Actions" and then—instance settings—change the instance type"Modify Volume".
+  	Step 4. -Increase/ decrease the size or change the volume type to a higher performance specification.
+   	Step 5. - Click "Modify" to apply the changes.
+   	Step 6:  Now the start the machine you see with increase /decrease of size and performance
+________________________________________
+2.Attach and permanently mount an EBS volume to a Linux EC2 instance to ensure data persistence across reboots.
+Objective
+Attach an additional EBS volume (example: 20 GB) to a Linux EC2 instance and mount it using the system default device names that appear on modern EC2 (Nitro) instances.
+Note: Although you select a device name like /dev/xvdf in the AWS Console, the OS typically shows the disk as NVMe devices such as /dev/nvme1n1 and partitions as /dev/nvme1n1p1.
+________________________________________
+Step 1: Create an EBS Volume
+1.	Log in to AWS Management Console
+2.	Go to EC2 → Volumes
+3.	Click Create volume
+4.	Choose:
+o	Volume type: gp3 (recommended)
+o	Size: 20 GB (example)
+o	Availability Zone: Same AZ as the EC2 instance
+5.	Click Create volume
+________________________________________
+Step 2: Attach the EBS Volume to EC2
+1.	Select the newly created EBS volume
+2.	Click Actions → Attach volume
+3.	Choose:
+o	Instance: Your Linux EC2 instance
+o	Device name (console level): /dev/xvdf
+4.	Click Attach
+Internally, Linux will expose this as an NVMe device (for example /dev/nvme1n1).
+________________________________________
+Step 3: Connect to the EC2 Instance
+Connect using SSH:
+ssh -i key.pem ec2-user@<public-ip>
+________________________________________
+Step 4: Verify the Attached Disk
+List all block devices:
+lsblk
+You will typically see:
+•	Root volume: /dev/nvme0n1 (with partitions like nvme0n1p1)
+•	New EBS volume: /dev/nvme1n1 (no partition yet)
+Check filesystem information:
+lsblk -fs
+________________________________________
+Step 5: Create a Partition on the New Volume
+Create a partition on the unpartitioned disk:
+fdisk /dev/nvme1n1
+Inside fdisk:
+•	Press m → Help menu
+•	Press n → New partition
+•	Press p → Primary partition
+•	Press Enter → Default partition number
+•	Press Enter → Default first sector
+•	Press Enter → Default last sector (use full disk)
+•	Press w → Write changes and exit
+Notify the kernel:
+partprobe
+________________________________________
+Step 6: Verify the New Partition
+lsblk -fs
+You should now see:
+•	/dev/nvme1n1p1
+________________________________________
+Step 7: Format the Partition
+Format the partition with XFS filesystem:
+mkfs.xfs /dev/nvme1n1p1
+Verify:
+lsblk -fs
+________________________________________
+Step 8: Create a Mount Directory
+mkdir /mnt/archana
+________________________________________
+Step 9: Mount the Volume
+mount /dev/nvme1n1p1 /mnt/archana
+Verify:
+df -h
+________________________________________
+Step 10: Make the Mount Persistent (fstab)
+Get the UUID:
+blkid /dev/nvme1n1p1
+Example output:
+UUID="f1e294e6-7657-4761-bba5-bb2d0eab3936"
+Edit /etc/fstab:
+nano /etc/fstab
+Add this line at the end:
+UUID=f1e294e6-7657-4761-bba5-bb2d0eab3936   /mnt/archana   xfs   defaults,nofail   0   0
+Save and exit.
+Test the entry:
+mount -a
+navigate to cd /mnt/archana
+create the files here
+touch f1
+________________________________________
+Step 11: Verify Persistence
+1.	Reboot the instance:
+reboot
+2.	Reconnect and check:
+df -h
+➡️ The volume should mount automatically.
+________________________________________
+Step 12: Detach and Reattach Volume (Data Recovery Scenario)
+Detach the Volume
+•	EC2 → Volumes → Select volume
+•	Actions → Detach volume
+Attach to Another EC2 Instance (Same AZ)
+1.	Attach the volume to a new instance
+2.	Log in to the new instance
+3.	Create mount directory:
+mkdir /mnt/archana
+4.	Mount the existing partition:
+mount /dev/nvme1n1p1 /mnt/archana
+✅ All previously stored data will be available.
+________________________________________
+Summary Flow
+Create Volume → Attach → lsblk → fdisk → mkfs → mkdir → mount → fstab → reboot
+________________________________________
+
+3. Create a snapshot of the attached EBS volume and use it to create and attach a new volume to an EC2 instance in another AWS region.
+Attaching Volumes across regions of EC2 using the snapshot
+To create a snapshot of an EBS volume and attach it to an instance in another region in AWS, you'll need to follow these steps:
+
+Step 1. Create a Snapshot:
+   a. Sign in to the AWS Management Console.
+   b. Navigate to the EC2 Dashboard.
+   c. Click on "Volumes" in the left-hand navigation pane.
+   d. Select the EBS volume you want to create a snapshot of.
+   e. Click on the "Actions" dropdown menu above the volume list and select "Create Snapshot."
+   f. Provide a name and description for the snapshot.
+   g. Click on the "Create Snapshot" button to initiate the snapshot creation process.
+
+Step 2. Copy the Snapshot to Another Region:
+   a. Once the snapshot is created, go to the "Snapshots" section in the EC2 Dashboard.
+   b. Select the snapshot you just created.
+   c. Click on the "Actions" dropdown menu above the snapshot list and select "Copy Snapshot."
+   d. Choose the destination region where you want to copy the snapshot.
+   e. Click on the "Copy Snapshot" button to initiate the copy process. This may take some time depending on the size of the snapshot and the network speed.
+
+Step 3. Monitor the Snapshot Copy Progress:
+   a. You can monitor the progress of the snapshot copy by navigating to the "Snapshots" section in the EC2 Dashboard of the source region.
+   b. Look for the snapshot you copied and check its status. It will change from "pending" to "completed" once the copy process is finished.
+
+Step 4. Switch to the Destination Region:
+a.	Use the region selector in the top-right corner of the AWS Management Console to switch to the destination region where you copied the snapshot.
+
+Step 5. Create a Volume from the Snapshot:
+   a. In the EC2 Dashboard of the destination region, go to the "Snapshots" section.
+   b. Find the snapshot you copied from the source region.
+   c. Click on the snapshot, then click on the "Actions" dropdown menu and select "Create Volume."
+   d. Configure the volume settings, such as volume type, size, and availability zone.
+   e. Click on the "Create Volume" button to create the volume from the snapshot.
+
+Step 6. Create the ec2 instance & Attach the Volume to an Instance:
+   a. Once the volume is created, navigate to the "Volumes" section in the EC2 Dashboard.
+   b. Find the newly created volume and select it.
+   c. Click on the "Actions" dropdown menu and select "Attach Volume."
+   D  the EC2 instance to which you want to attach the volume and specify the device name.
+   e. Click on the "Attach" button to attach the volume to the instance.
+
+We have created a snapshot of an EBS volume, copied it to another region, created a volume from the snapshot, and attached it to an instance in the destination region.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Week-3:
+Elastic File Storage
+
+Amazon EFS supports for only  Amazon Linux instance:
+Step 1: Launching EC2 Instances
+1. Sign in to AWS Management Console.
+2. Go to the EC2 dashboard.
+3. Click on "Launch Instance".
+4. Configure instance details:
+   - Instance Name: EFS-1
+5. Choose an Amazon Machine Image (AMI) for Linux.
+6. Select instance type: t2.micro.
+   - Key Pair: EFS
+   - Network: Choose Subnet-1a
+   - Security Group: Create a new security group (SG) and add NFS and allow from anywhere.
+7. Launch the instance.
+8. Repeat the above steps to launch another instance named EFS-2 in Subnet-1b with the same configuration.
+Step 2: Creating an EFS File System
+1. Go to the EFS service in the AWS Management Console.
+2. Click on "Create file system".
+3. Specify details:
+   - Name: Optional
+   - VPC: Default
+   - Enable region button.
+Click on "Next".
+4. In the Network settings:
+   - Delete all security groups.
+   - Select the newly created security group (NFS).---which is created while creating instance
+ Click on "Next" and review the configuration.
+Click on "Create file system".
+Step 3: Accessing the two EC2 instances named EFS-1 & EFS -2 in two different PowerShell sessions and performing the specified tasks:
+Accessing EFS-1 Instances in Two Different PowerShell Sessions:
+1. Open Two PowerShell Sessions:
+   - Open two separate PowerShell windows or tabs on your local machine.
+For each  Instance:
+2. SSH into the Instance:
+   - Use the SSH command to connect to the EFS-1 instance
+          ssh -i [path-to-your-keypair.pem] ec2-user@[instance-public-ip]
+3. Switch to Root User:
+   - Gain root access by executing the following command:
+         sudo su
+    4. Create a Directory:
+   - Make a directory named "efs" using the following command:
+          mkdir efs
+     5. Install Amazon EFS Utilities:
+   - Use yum package manager to install the Amazon EFS utilities:
+         yum install -y amazon-efs-utils
+     6. List Files:
+   - Execute the following command to list files in the current directory:
+          ls
+     7. Verify Installation (Optional):
+   - Optionally, you can verify the installation of the Amazon EFS utilities by checking the version:
+         efs-utils --version
+     Repeat Steps 2-7 for -------------------------  EFS-2 Instance.
+By following these steps, you'll have accessed each EFS-1 instance in separate PowerShell sessions, switched to the root user, created a directory named "efs," installed the Amazon EFS utilities, and listed files in the directory. This setup allows you to configure and manage each instance individually as needed.
+Step 4: Attaching EFS to EC2 Instances
+1. Go to the EFS service in the AWS Management Console.
+2. Click on the target EFS file system.
+3. Click on the "Attach" button.
+4. Choose "Mount via DNS" option.
+5. Copy the displayed command. ,on both ec2 instances(powershell)
+6. Paste and execute the copied command in the terminal to mount the EFS file system onto the instance.
+Step 5: Verify and Test EFS
+1. Change the directory to EFS on both instances.
+2. Create a file on one instance.
+3. Verify that the file automatically synchronizes and appears on the other instance.
+
+By above steps, we can successfully create EC2 instances, configured them, created an EFS file system, and attached it to the instances in the same availability zone in the Mumbai region. Now, the instances can seamlessly access and share files stored in the EFS file system.
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+WEEK-4
+Simple Storage Service (S3)
+
+________________________________________
+1.Creating an S3 bucket, upload an object, and enable public access 
+1️⃣ Create an S3 Bucket (with Public Access Enabled)
+Step 1: Open S3 Service
+•	Login to AWS Management Console
+•	Go to Services → S3
+•	Click Create bucket
+________________________________________
+Step 2: Bucket Configuration
+•	Bucket name: my-public-bucket-123
+•	Region: Choose nearest region
+________________________________________
+Step 3: Disable Block Public Access (IMPORTANT)
+Under Block Public Access settings for this bucket:
+❌ Uncheck Block all public access
+You must uncheck ALL options:
+✔ Check I acknowledge that this bucket will become public
+👉 Click Create bucket
+________________________________________
+2️⃣ Enable Public Access at Bucket Level (ACL)
+Step 4: Open the Bucket
+•	Click on the bucket name
+•	Go to Permissions tab
+________________________________________
+Step 5: Edit Bucket ACL
+•	Scroll to Access Control List (ACL)
+•	Click Edit
+Under Public access:
+•	Everyone (public access) → ✔ Read access
+✔ Save changes
+📌 This allows public access at bucket level
+________________________________________
+3️⃣ Upload Object to the Bucket
+Step 6: Upload File
+•	Go to Objects tab
+•	Click Upload
+•	Click Add files
+•	Select file (e.g., image.jpg)
+•	Click Upload
+________________________________________
+4️⃣ Enable Public Access for Object (ACL)
+Step 7: Object-Level ACL Permission
+•	Click on uploaded object
+•	Go to Permissions tab
+•	Scroll to Access Control List (ACL)
+•	Click Edit
+Under Public access:
+•	Everyone (public access) → ✔ Read access
+✔ Save changes
+________________________________________
+5️⃣ Verify Public Access
+Step 8: Test Object URL
+•	Copy Object URL
+•	Open in browser (incognito)
+✔ Object should be accessible without login
+________________________________________
+2. S3 Versioning & Cross-Region Replication 
+________________________________________
+1️⃣ Enabling Versioning in S3 (with Output Scenario)
+🔸 Objective
+To enable version control on an S3 bucket and observe object versions.
+________________________________________
+🔸 Steps to Enable Versioning
+1.	Open AWS Management Console
+2.	Navigate to S3
+3.	Select the bucket
+4.	Go to Properties tab
+5.	Scroll to Bucket Versioning
+6.	Click Edit
+7.	Select Enable
+8.	Click Save changes
+✔ Versioning is now enabled
+________________________________________
+🔸 Output Scenario (What You Observe)
+Step A: Upload Object
+•	Upload file: report.pdf
+📌 Output:
+•	Version ID is assigned automatically
+________________________________________
+Step B: Modify and Re-upload Same Object
+•	Upload report.pdf again (same name)
+📌 Output:
+•	Old version is preserved
+•	New version becomes current
+________________________________________
+Step C: Delete Object
+•	Click Delete on report.pdf
+📌 Output:
+•	Object appears deleted
+•	A Delete Marker is created
+•	Older versions still exist and can be restored
+________________________________________
+
+2️⃣ Cross-Region Replication (CRR) 
+🔸 Objective
+To replicate objects from one bucket to another in a different region using AWS-managed permissions.
+________________________________________
+🔸 Prerequisites (Very Important)
+✔ Versioning must be enabled on both buckets
+✔ Source and destination buckets must be in different regions
+✔ AWS Academy automatically handles replication permissions
+________________________________________
+Step 1️⃣ Create Destination Bucket
+1.	Go to S3 → Create bucket
+2.	Bucket name: dest-crr-bucket
+3.	Select different region
+4.	Complete bucket creation
+5.	Enable Versioning (same steps as above)
+________________________________________
+Step 2️⃣ Create Replication Rule (Without IAM Selection)
+1.	Open Source bucket
+2.	Go to Management tab
+3.	Click Replication rules
+4.	Click Create replication rule
+________________________________________
+Step 3️⃣ Configure Replication Rule
+•	Rule name: academy-crr-rule
+•	Status: Enabled
+•	Scope: Apply to all objects
+________________________________________
+Step 4️⃣ Choose Destination Bucket
+•	Select Another bucket
+•	Choose Destination bucket
+•	Confirm different region
+📌 AWS Academy Note:
+You will see an option like:
+"AWS will create and manage the required permissions automatically"
+✔ Select Use AWS-managed role / default role
+________________________________________
+Step 5️⃣ Replication Options
+•	Replicate:
+o	✔ New objects
+o	❌ Existing objects (optional, depends on Academy permissions)
+•	Encryption: Leave default
+Click Save
+✔ Replication rule is now active
+________________________________________
+3️⃣ CRR Output Scenario (What You Observe)
+🔸 Step A: Upload New Object to Source Bucket
+•	Upload file: image.png
+📌 Output:
+•	Object is uploaded normally
+________________________________________
+🔸 Step B: Verify Destination Bucket
+•	Open destination bucket
+•	Object image.png appears automatically
+•	Version ID is present
+✔ Replication successful
+________________________________________
+
+3.	Static Website Hosting in S3
+(Using Bucket-Level & Object-Level Permissions – ACL Method)
+________________________________________
+🔹 Objective
+To host a static website in Amazon S3 using index.html and error.html, and allow public access using ACL-based bucket and object permissions.
+________________________________________
+🔹 Prerequisites
+•	AWS / AWS Academy account
+•	Two files:
+o	index.html
+o	error.html
+________________________________________
+1️⃣ Create an S3 Bucket
+1.	Login to AWS Management Console
+2.	Go to Services → S3
+3.	Click Create bucket
+4.	Enter:
+o	Bucket name: my-static-site-bucket-123
+o	Region: Nearest region
+5.	Under Block Public Access:
+o	❌ Uncheck Block all public access
+o	✔ Acknowledge the warning
+6.	Click Create bucket
+✔ Bucket created successfully
+________________________________________
+2️⃣ Upload Website Files
+1.	Open the bucket
+2.	Go to Objects tab
+3.	Click Upload
+4.	Click Add files
+5.	Select:
+o	index.html
+o	error.html
+6.	Click Upload
+✔ Files uploaded
+________________________________________
+3️⃣ Enable Static Website Hosting
+1.	Go to Properties tab
+2.	Scroll to Static website hosting
+3.	Click Edit
+4.	Select Enable
+5.	Choose Host a static website
+6.	Enter:
+o	Index document: index.html
+o	Error document: error.html
+7.	Click Save changes
+✔ Static website hosting enabled
+________________________________________
+4️⃣ Enable Bucket-Level Public Access (ACL)
+🔹 Purpose
+Allows public users to access objects inside the bucket.
+________________________________________
+1.	Go to Permissions tab
+2.	Scroll to Access Control List (ACL)
+3.	Click Edit
+4.	Under Public access:
+o	Everyone (public access) → ✔ Read
+5.	Click Save changes
+✔ Bucket-level public read access enabled
+________________________________________
+5️⃣ Enable Object-Level Public Access (ACL)
+Steps (For Each File)
+1.	Go to Objects tab
+2.	Click on index.html
+3.	Go to Permissions
+4.	Scroll to Access Control List (ACL)
+5.	Click Edit
+6.	Under Public access:
+o	Everyone (public access) → ✔ Read
+7.	Save changes
+🔁 Repeat the same steps for error.html
+✔ Object-level public access enabled
+________________________________________
+6️⃣ Access the Static Website
+1.	Go to Properties
+2.	Scroll to Static website hosting
+3.	Copy the Bucket website endpoint
+4.	http://my-static-site-bucket-123.s3-website-region.amazonaws.com
+5.	Paste into browser
+✔ index.html page loads successfully
+________________________________________
+7️⃣ Error Page Output Scenario
+🔹 Test Error Page
+•	Open an invalid URL:
+•	http://bucket-name.s3-website-region.amazonaws.com/invalid.html
+📌 Output:
+•	error.html page is displayed
+✔ Error page working correctly
+________________________________________
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Week 5: 
+VPC Creation and Ec2 Instance Connection
+
+🔹Step 1: Create the VPC
+1.	Go to AWS Management Console → VPC
+2.	Click Create VPC
+3.	Choose VPC only
+4.	Enter:
+o	Name: Custom-VPC
+o	IPv4 CIDR block: e.g. 10.0.0.0/16
+5.	Click Create VPC
+
+🔹 Step 2: Create Subnets (Public & Private)
+Create subnets in same Availability Zones for high availability.
+Example:
+·	Public Subnet: 10.0.1.0/24 (AZ-A)
+·	Private Subnet: 10.0.2.0/24 (AZ-A)
+Steps:
+1.	Go to Subnets → Create subnet
+2.	Select your VPC
+3.	Choose AZ
+4.	Enter CIDR
+5.	Create subnet
+
+🔹 Step 3: Create an Internet Gateway (IGW)
+1.	Go to Internet Gateways
+2.	Click Create internet gateway
+3.	Name it Custom-IGW
+4.	Attach it to your VPC
+ 
+🔹 Step 4: Create Route Tables
+You need separate route tables for public and private subnets.
+Public Route Table
+1.	Go to Route Tables → Create route table
+2.	Select VPC
+3.	Add route:
+o	Destination: 0.0.0.0/0
+o	Target: Internet Gateway
+4.	Associate with public subnet
+Private Route Table
+·	Keep default local route only (no IGW)
+·	Associate with private subnet
+ 
+🔹 Step 5: Enable Auto-Assign Public IP (Public Subnet)
+1.	Select Public Subnet
+2.	Go to Edit subnet settings
+3.	Enable Auto-assign public IPv4 address
+ 
+🔹 Step 6: Configure Security Groups
+1.	Create a Security Group
+2.	Add inbound rules:
+o	HTTP (80) / HTTPS (443)
+o	SSH (22) from trusted IP
+3.	Attach to EC2 instances
+ 
+🔹 Step 7: Launch EC2 Instances
+·	Public EC2 → Public subnet
+·	Private EC2 → Private subnet
+Attach correct security groups.
+ 
+🔹 Step 8: Test the Setup
+·	Public EC2 → Internet access ✔
+·	Private EC2 → Internet via NAT ✔
+·	Private EC2 → No direct inbound access ✔
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
 Week-7
+DynamoDB, Lambda Function
 
 1. Create an S3 Bucket (Event Source)
 1.	Log in to the Amazon Web Services Console.
@@ -40,49 +625,34 @@ import boto3
 from uuid import uuid4
 from urllib.parse import unquote_plus
 
-# Initialize clients outside handler (best practice)
-s3 = boto3.client('s3')
-dynamodb = boto3.resource('dynamodb')
+# DynamoDB table name
+TABLE_NAME = "newtable"
 
-# Replace with your DynamoDB table name
-TABLE_NAME = 'newtable'
+dynamodb = boto3.resource('dynamodb')
+table = dynamodb.Table(TABLE_NAME)
 
 def lambda_handler(event, context):
-    table = dynamodb.Table(TABLE_NAME)
 
     for record in event['Records']:
-        # Extract S3 info
+
+        # S3 object details
         bucket_name = record['s3']['bucket']['name']
-        object_key = unquote_plus(record['s3']['object']['key'])
-        size = record['s3']['object'].get('size', -1)
+        file_name = unquote_plus(record['s3']['object']['key'])
+        file_size = record['s3']['object'].get('size', 0)
 
-        # Event metadata
-        event_name = record['eventName']
-        event_time = record['eventTime']
-
-        # Optional: get object metadata (extra info)
-        try:
-            response = s3.head_object(Bucket=bucket_name, Key=object_key)
-            content_type = response.get('ContentType', 'unknown')
-        except Exception as e:
-            content_type = 'unknown'
-
-        # Insert into DynamoDB
+        # Save into DynamoDB
         table.put_item(
             Item={
-                'id': str(uuid4()),   # Primary key
+                'unique': str(uuid4()),   # Partition Key (String)
                 'Bucket': bucket_name,
-                'Object': object_key,
-                'Size': size,
-                'Event': event_name,
-                'EventTime': event_time,
-                'ContentType': content_type
+                'FileName': file_name,
+                'FileSize': file_size
             }
         )
 
     return {
         'statusCode': 200,
-        'body': json.dumps('S3 event processed successfully')
+        'body': json.dumps('Success')
     }
 
 5. Add S3 Trigger to Lambda
@@ -117,9 +687,10 @@ UUID	bucket name	file name	size	ObjectCreated	time
 -Click on the view cloudwatch logs
 -Click on the time lines and check the logs
  
-
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 WEEK-8---SNS,SQS & S3-SNS-SQS-LAMBDA SERVICES
+
 1) Simple Notification Sevice (SNS) 
 A) Create SNS Topic and Send Message to Email
 We will:
@@ -250,8 +821,10 @@ o	SNS receives publish request
 o	SNS sends email
  You will receive mail about object upload.
 
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 WEEK-9- Implementation of Elastic Load Balancer with Auto Scaling using AWS EC2 Instances.
+
 Elastic Load Balancer (ALB)
 Step 1: Launch Two EC2 Instances 
 1.1 Launch EC2 Instance #1
@@ -406,8 +979,10 @@ Summary of Flow
 5.	Test Load Balancer → distributes traffic between all active instances
 ________________________________________
 
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 WEEK-10- Elastic Beanstalk
+
 Prerequisites 
 • 	A web application ready (e.g., ROOT.war, .zip, or code)----YOU CAN YOURS MAVEN PROJECT HERE 
  
